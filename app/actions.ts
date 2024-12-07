@@ -1,7 +1,7 @@
 "use server";
 
 import { encodedRedirect } from "@/utils/utils";
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createPgmqClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -132,3 +132,54 @@ export const signOutAction = async () => {
   await supabase.auth.signOut();
   return redirect("/sign-in");
 };
+
+export async function enqueueMessage(formData: FormData) {
+  try {
+    const pgmqClient = await createPgmqClient();
+    const message = formData.get('message')?.toString() || '';
+
+    // JSON形式のメッセージを作成
+    const messageObject = {
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+
+    const result = await pgmqClient.send('message_queue', JSON.stringify(messageObject));
+
+    return { success: true, messageId: result };
+  } catch (error) {
+    console.error('Error enqueueing message:', error);
+    return { error: error instanceof Error ? error.message : 'Unknown error occurred' };
+  }
+}
+
+export async function readMessage() {
+  try {
+    const pgmqClient = await createPgmqClient();
+    const messages = await pgmqClient.read('message_queue');
+    return {
+      success: true,
+      messages: messages.map(msg => ({
+        id: msg.msg_id,
+        content: msg.msg,
+        readCount: msg.read_ct,
+        enqueuedAt: msg.enqueued_at,
+        lastReadAt: msg.last_read_at
+      }))
+    };
+  } catch (error) {
+    console.error('Error reading message:', error);
+    return { error: error instanceof Error ? error.message : 'Unknown error occurred' };
+  }
+}
+
+export async function deleteMessage(messageId: string) {
+  try {
+    const pgmqClient = await createPgmqClient();
+    await pgmqClient.delete('message_queue', messageId);
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    return { error: error instanceof Error ? error.message : 'Unknown error occurred' };
+  }
+}

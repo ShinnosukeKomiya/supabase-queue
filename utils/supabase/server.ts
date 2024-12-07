@@ -27,3 +27,39 @@ export const createClient = async () => {
     },
   );
 };
+
+export const createPgmqClient = async () => {
+  const supabase = await createClient();
+
+  return {
+    send: async (queue: string, message: any) => {
+      const { data, error } = await supabase.rpc('pgmq_send', {
+        p_queue: queue,
+        p_msg: message,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+
+    read: async (queue: string, vt: number = 30) => {
+      const { data, error } = await supabase.rpc('pgmq_read', {
+        p_queue: queue,
+        p_vt: vt
+      });
+
+      if (error) throw error;
+      return data;
+    },
+
+    delete: async (queue: string, message_id: string) => {
+      const { data, error } = await supabase.rpc('pgmq_delete', {
+        p_queue: queue,
+        p_msg_id: message_id
+      });
+
+      if (error) throw error;
+      return data;
+    }
+  };
+};
